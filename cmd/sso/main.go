@@ -1,9 +1,12 @@
 package main
 
 import (
+	"github.com/anizamutdinov-go/sso/internal/app"
 	"github.com/anizamutdinov-go/sso/internal/config"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 const (
@@ -15,11 +18,21 @@ const (
 func main() {
 
 	cfg := config.Mustload()
-	setupLogger(cfg.Env)
+	log := setupLogger(cfg.Env)
+
+	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath, cfg.TokenTTL)
+
+	go application.GRPSCServer.MustRun()
 
 	//todo: engine
 	//todo: start grpc-app
 	//todo: ???
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	stopSign := <-stop
+	log.Info("Stopping SSO-application", slog.String("signal", stopSign.String()))
+	application.GRPSCServer.Stop()
 }
 
 func setupLogger(env string) (log *slog.Logger) {
